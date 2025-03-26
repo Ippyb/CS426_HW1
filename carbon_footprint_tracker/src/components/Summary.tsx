@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import moment from "moment";
+import { useState, useEffect } from "react";
 
 // To avoid type safety errors am creating interfaces
 interface Activity {
@@ -18,40 +19,60 @@ interface Activity {
   date: string;
 }
 
-interface SummaryProps {
-  activities: Activity[];
-}
-
 /*
 takes an array of activity objects (each w/ name, category, carbon value, date) and processes them to group emissions by day
 CO₂ vals for activities on same date get summed.
 dates are then formatted for readability
 Output is a responsive line chart that visualizes daily carbon emissions over time.
 */
-const Summary = ({ activities }: SummaryProps) => {
-  
-  // result of reduce is an arr where each entry is the line graph data (carbon emissions) for each date
-  const lineData = activities.reduce((acc, activity) => {
-    // format date to display as "MMM D"
-    const date = moment(activity.date).format("MMM D");
-    
-    const existing = acc.find((item) => item.date === date);
-    // if date exists add to its carbon value
-    if (existing) {
-      existing.carbonValue += activity.carbonValue;
-    }
-    // if date doesn't exist, create new entry
-    else {
-      acc.push({
-        date,
-        carbonValue: activity.carbonValue,
-      });
-    }
-    
-    // want reduce to return the arr
-    return acc;
-    // declaring structure of data that'll be stored in arr; eg "{ date: "2025-03-25", carbonValue: 2 }"
-  }, [] as { date: string; carbonValue: number }[]);
+const Summary = () => {
+  const [lineData, setLineData] = useState<
+    { date: string; carbonValue: number }[]
+  >([]);
+
+  const updateLineData = (activities: Activity[]) => {
+    // result of reduce is an arr where each entry is the line graph data (carbon emissions) for each date
+    const processedData = activities.reduce((acc, activity) => {
+      // format date to display as "MMM D"
+      const date = moment(activity.date).format("MMM D");
+
+      const existing = acc.find((item) => item.date === date);
+      // if date exists add to its carbon value
+      if (existing) {
+        existing.carbonValue += activity.carbonValue;
+      }
+      // if date doesn't exist, create new entry
+      else {
+        acc.push({
+          date,
+          carbonValue: activity.carbonValue,
+        });
+      }
+
+      // want reduce to return the arr
+      return acc;
+    }, [] as { date: string; carbonValue: number }[]);
+
+    setLineData(processedData);
+  };
+
+  // logic to make line chart and vals dynamically update
+  useEffect(() => {
+    const loadActivities = () => {
+      const storedActivities = localStorage.getItem("activities");
+      const activities = storedActivities ? JSON.parse(storedActivities) : [];
+      updateLineData(activities);
+    };
+
+    // Load initial data
+    loadActivities();
+
+    // Set up event listener for updates
+    window.addEventListener("activityUpdated", loadActivities);
+
+    // Clean up event listener
+    return () => window.removeEventListener("activityUpdated", loadActivities);
+  }, []);
 
   return (
     <div className="summary-container">
